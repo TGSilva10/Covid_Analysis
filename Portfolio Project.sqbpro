@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?><sqlb_project><db path="Portfolio Project.db" readonly="0" foreign_keys="1" case_sensitive_like="0" temp_store="0" wal_autocheckpoint="1000" synchronous="2"/><attached/><window><main_tabs open="structure browser pragmas query" current="3"/></window><tab_structure><column_width id="0" width="300"/><column_width id="1" width="0"/><column_width id="2" width="100"/><column_width id="3" width="8778"/><column_width id="4" width="0"/><expanded_item id="0" parent="1"/><expanded_item id="1" parent="1"/><expanded_item id="2" parent="1"/><expanded_item id="3" parent="1"/></tab_structure><tab_browse><table title="CovidDeaths" custom_title="0" dock_id="1" table="4,11:mainCovidDeaths"/><dock_state state="000000ff00000000fd00000001000000020000044600000356fc0100000001fb000000160064006f0063006b00420072006f00770073006500310100000000000004460000012600ffffff000002a10000000000000004000000040000000800000008fc00000000"/><default_encoding codec=""/><browse_table_settings><table schema="main" name="CovidDeaths" show_row_id="0" encoding="" plot_x_axis="" unlock_view_pk="_rowid_" freeze_columns="0"><sort/><column_widths><column index="1" value="66"/><column index="2" value="70"/><column index="3" value="70"/><column index="4" value="58"/><column index="5" value="83"/><column index="6" value="79"/><column index="7" value="152"/><column index="8" value="90"/><column index="9" value="86"/><column index="10" value="159"/><column index="11" value="163"/><column index="12" value="159"/><column index="13" value="232"/><column index="14" value="170"/><column index="15" value="166"/><column index="16" value="239"/><column index="17" value="126"/><column index="18" value="89"/><column index="19" value="169"/><column index="20" value="101"/><column index="21" value="181"/><column index="22" value="161"/><column index="23" value="241"/><column index="24" value="173"/><column index="25" value="253"/><column index="26" value="75"/><column index="27" value="79"/><column index="28" value="177"/><column index="29" value="172"/><column index="30" value="147"/><column index="31" value="245"/><column index="32" value="93"/><column index="33" value="108"/><column index="34" value="88"/><column index="35" value="128"/><column index="36" value="131"/><column index="37" value="166"/><column index="38" value="124"/><column index="39" value="196"/><column index="40" value="219"/><column index="41" value="222"/><column index="42" value="258"/><column index="43" value="276"/><column index="44" value="120"/><column index="45" value="77"/><column index="46" value="133"/><column index="47" value="87"/><column index="48" value="106"/><column index="49" value="105"/><column index="50" value="110"/><column index="51" value="119"/><column index="52" value="157"/><column index="53" value="144"/><column index="54" value="115"/><column index="55" value="102"/><column index="56" value="158"/><column index="57" value="198"/><column index="58" value="111"/><column index="59" value="187"/></column_widths><filter_values/><conditional_formats/><row_id_formats/><display_formats/><hidden_columns/><plot_y_axes/><global_filter/></table></browse_table_settings></tab_browse><tab_sql><sql name="SQL 1*">-- 1. Sumário por continente: Total de casos, mortes e vacinações
+SELECT 
+    d.continent,
+    SUM(d.total_cases) AS total_cases,
+    SUM(d.total_deaths) AS total_deaths,
+    SUM(v.total_vaccinations) AS total_vaccinations
+FROM 
+    CovidDeaths d
+LEFT JOIN 
+    CovidVaccinations v
+ON 
+    d.continent = v.continent AND d.location = v.location AND d.date = v.date
+WHERE 
+    d.continent IS NOT NULL
+GROUP BY 
+    d.continent
+ORDER BY 
+    total_cases DESC;
+	
+-- 2. Tendências globais: Casos e mortes ao longo do tempo
+SELECT 
+    d.date,
+    SUM(d.new_cases) AS daily_cases,
+    SUM(d.new_deaths) AS daily_deaths
+FROM 
+    CovidDeaths d
+WHERE 
+    d.date IS NOT NULL
+GROUP BY 
+    d.date
+ORDER BY 
+    d.date;
+	
+-- 3. Top 10 países com mais casos, mortes e vacinações
+SELECT 
+    d.location AS country,
+    MAX(d.total_cases) AS max_cases,
+    MAX(d.total_deaths) AS max_deaths,
+    MAX(v.total_vaccinations) AS max_vaccinations
+FROM 
+    CovidDeaths d
+LEFT JOIN 
+    CovidVaccinations v
+ON 
+    d.location = v.location AND d.date = v.date
+WHERE 
+    d.continent IS NULL  -- Excluir agrupamentos por continentes
+GROUP BY 
+    d.location
+ORDER BY 
+    max_cases DESC
+LIMIT 10;
+
+-- 4. Relação entre vacinação e mortalidade ao longo do tempo
+SELECT 
+    d.date,
+    SUM(d.new_deaths) AS daily_deaths,
+    SUM(v.new_vaccinations) AS daily_vaccinations
+FROM 
+    CovidDeaths d
+LEFT JOIN 
+    CovidVaccinations v
+ON 
+    d.location = v.location AND d.date = v.date
+WHERE 
+    d.date IS NOT NULL
+GROUP BY 
+    d.date
+ORDER BY 
+    d.date;
+	
+-- 5. Países com maior taxa de mortalidade (mortes por casos confirmados)
+SELECT 
+    d.location AS country,
+    ROUND(MAX(d.total_deaths) * 100.0 / MAX(d.total_cases), 2) AS mortality_rate
+FROM 
+    CovidDeaths d
+WHERE 
+    d.total_cases &gt; 0 -- Evitar divisão por zero
+GROUP BY 
+    d.location
+ORDER BY 
+    mortality_rate DESC
+LIMIT 10;
+
+-- 6. Continentes com maior crescimento diário médio de casos
+SELECT 
+    d.continent,
+    ROUND(AVG(d.new_cases), 2) AS avg_daily_cases_growth
+FROM 
+    CovidDeaths d
+WHERE 
+    d.new_cases IS NOT NULL
+GROUP BY 
+    d.continent
+ORDER BY 
+    avg_daily_cases_growth DESC;
+	
+-- 7. Taxa de vacinação por continente
+SELECT 
+    d.continent,
+    ROUND(SUM(v.total_vaccinations) * 100.0 / SUM(d.population), 2) AS vaccination_rate
+FROM 
+    CovidDeaths d
+LEFT JOIN 
+    CovidVaccinations v
+ON 
+    d.continent = v.continent AND d.location = v.location AND d.date = v.date
+WHERE 
+    d.continent IS NOT NULL
+GROUP BY 
+    d.continent
+ORDER BY 
+    vaccination_rate DESC;
+
+-- 8. Países com maior número de casos por milhão de habitantes
+SELECT 
+    d.location AS country,
+    ROUND(MAX(d.total_cases_per_million), 2) AS cases_per_million
+FROM 
+    CovidDeaths d
+GROUP BY 
+    d.location
+ORDER BY 
+    cases_per_million DESC
+LIMIT 10;
+
+-- 9. Evolução percentual diária de casos globais
+SELECT 
+    d.date,
+   ROUND( (SUM(d.new_cases) * 100.0 / LAG(SUM(d.total_cases)) OVER (ORDER BY d.date)), 2)AS daily_case_growth_rate
+FROM 
+    CovidDeaths d
+GROUP BY 
+    d.date
+ORDER BY 
+    d.date;
+
+
+
+
+</sql><current_tab id="0"/></tab_sql></sqlb_project>
